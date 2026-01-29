@@ -6,6 +6,14 @@ export type GraphNode = {
   unlocks: string[];
   description: string;
   level: number;
+
+  // --- simulation / layout fields (optional) ---
+  x?: number;
+  y?: number;
+  z?: number;
+  fx?: number;
+  fy?: number;
+  fz?: number;
 };
 
 export type GraphLink = {
