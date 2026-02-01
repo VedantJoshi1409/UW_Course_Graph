@@ -10,6 +10,7 @@
     "seed": "npx tsx lib/seed.ts"
   },
   "dependencies": {
+    "@vercel/analytics": "^1.6.1",
     "3d-force-graph": "^1.79.0",
     "next": "16.1.3",
     "playwright": "^1.58.0",
