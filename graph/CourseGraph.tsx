@@ -1,6 +1,8 @@
 "use client";
 
-import ForceGraph3D from "3d-force-graph";
+import ForceGraph3D, { ForceGraph3DInstance } from "3d-force-graph";
+
+const ForceGraph3DFn = ForceGraph3D as unknown as () => (elem: HTMLElement) => ForceGraph3DInstance;
 import { useEffect, useRef, useState } from "react";
 import { GraphData, GraphNode } from "./types";
 import FacultySelector from "./FacultySelector";
@@ -34,7 +36,7 @@ function mixWithWhite(hex: string, amount: number): string {
 
 export default function CourseGraph() {
   const ref = useRef<HTMLDivElement>(null);
-  const graphRef = useRef<ReturnType<typeof ForceGraph3D> | null>(null);
+  const graphRef = useRef<ForceGraph3DInstance | null>(null);
 
   const [mode, setMode] = useState<"faculty" | "search">("faculty");
   const [selectedFaculties, setSelectedFaculties] = useState<string[]>([]);
@@ -88,7 +90,7 @@ export default function CourseGraph() {
       if (graphRef.current) {
         graphRef.current.graphData(data);
       } else {
-        graphRef.current = ForceGraph3D()(ref.current!)
+        graphRef.current = ForceGraph3DFn()(ref.current!)
           .graphData(data)
           .nodeLabel("title")
           .nodeColor((node: any) => {
