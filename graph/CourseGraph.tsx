@@ -1,16 +1,42 @@
 "use client";
 
 import ForceGraph3D from "3d-force-graph";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GraphData } from "./types";
+import FacultySelector from "./FacultySelector";
 
 export default function CourseGraph() {
   const ref = useRef<HTMLDivElement>(null);
+  const graphRef = useRef<ReturnType<typeof ForceGraph3D> | null>(null);
+  const [selectedFaculties, setSelectedFaculties] = useState<string[]>([]);
 
   useEffect(() => {
-    fetch("/api/graph")
-      .then((res) => res.json())
-      .then((data: GraphData) => {
+    const loadData = async () => {
+      let data: GraphData;
+
+      if (selectedFaculties.length === 0) {
+        // Show only root node when nothing selected
+        data = {
+          nodes: [
+            {
+              id: "Root",
+              title: "Root",
+              subject: "None",
+              description: "Root Node",
+              faculty: "None",
+              prerequisites: [],
+              level: 0,
+              fx: 0,
+              fy: 0,
+              fz: 0,
+            },
+          ],
+          links: [],
+        };
+      } else {
+        const url = `/api/graph?faculties=${selectedFaculties.join(",")}`;
+        const res = await fetch(url);
+        data = await res.json();
         data.nodes.forEach((node) => {
           if (node.id === "Root") {
             node.fx = 0;
@@ -18,85 +44,29 @@ export default function CourseGraph() {
             node.fz = 0;
           }
         });
+      }
 
-        // Faculty nodes = level 0 excluding Root
-        const facultyNodes = data.nodes.filter(
-          (node) => node.level === 0 && node.id !== "Root",
-        );
-
-        // Place faculties evenly on a sphere around Root
-        const FACULTY_RADIUS = 20;
-        const n = facultyNodes.length;
-
-        // Fibonacci sphere
-        const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // ~2.399...
-
-        facultyNodes.forEach((node, i) => {
-          // y goes from 1 to -1
-          const t = n === 1 ? 0.5 : i / (n - 1);
-          const y = 1 - 2 * t;
-
-          const r = Math.sqrt(1 - y * y); // radius of circle at that y
-          const theta = goldenAngle * i;
-
-          const x = Math.cos(theta) * r;
-          const z = Math.sin(theta) * r;
-
-          node.fx = x * FACULTY_RADIUS;
-          node.fy = y * FACULTY_RADIUS;
-          node.fz = z * FACULTY_RADIUS;
-        });
-
-        // Build a map of faculty positions for the custom force
-        const facultyPositions = new Map<string, { x: number; y: number; z: number }>();
-        facultyNodes.forEach((node) => {
-          facultyPositions.set(node.id, {
-            x: node.fx!,
-            y: node.fy!,
-            z: node.fz!,
-          });
-        });
-
-        // Custom force to push nodes in the direction of their faculty
-        function facultyDirectionForce(alpha: number) {
-          data.nodes.forEach((node: any) => {
-            if (node.id === "Root" || node.level === 0) return;
-
-            const facultyPos = facultyPositions.get(node.faculty);
-            if (!facultyPos) return;
-
-            // Normalize faculty direction
-            const len = Math.sqrt(
-              facultyPos.x ** 2 + facultyPos.y ** 2 + facultyPos.z ** 2,
-            );
-            if (len === 0) return;
-
-            const dirX = facultyPos.x / len;
-            const dirY = facultyPos.y / len;
-            const dirZ = facultyPos.z / len;
-
-            // Target position based on level
-            const targetRadius = (node.level + 1) * 30;
-            const targetX = dirX * targetRadius;
-            const targetY = dirY * targetRadius;
-            const targetZ = dirZ * targetRadius;
-
-            // Apply force towards target
-            const strength = 0.3 * alpha;
-            node.vx += (targetX - (node.x || 0)) * strength;
-            node.vy += (targetY - (node.y || 0)) * strength;
-            node.vz += (targetZ - (node.z || 0)) * strength;
-          });
-        }
-
-        const graph = ForceGraph3D()(ref.current!)
+      if (graphRef.current) {
+        graphRef.current.graphData(data);
+      } else {
+        graphRef.current = ForceGraph3D()(ref.current!)
           .graphData(data)
-          .nodeLabel("id")
+          .nodeLabel("title")
           .nodeAutoColorBy("faculty")
-          .backgroundColor("#050510")
-          .d3Force("facultyDirection", facultyDirectionForce);
-      });
-  }, []);
+          .backgroundColor("#050510");
+      }
+    };
 
-  return <div ref={ref} className="w-full h-screen" />;
+    loadData();
+  }, [selectedFaculties]);
+
+  return (
+    <div className="relative w-full h-screen">
+      <FacultySelector
+        selected={selectedFaculties}
+        onChange={setSelectedFaculties}
+      />
+      <div ref={ref} className="w-full h-full" />
+    </div>
+  );
 }

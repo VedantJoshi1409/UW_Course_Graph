@@ -1,85 +1,161 @@
-import { NextResponse } from "next/server";
-import { GraphData } from "@/graph/types";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { GraphData, GraphNode } from "@/graph/types";
 
-export async function GET() {
-  const data: GraphData = {
-    nodes: [
-      {
-        id: "Root",
-        title: "Root",
-        subject: "None",
-        description: "Root Node",
-        faculty: "None",
-        prerequisites: [],
-        level: 0,
-      },
+// Cache for course nodes
+let cachedCourseNodes: GraphNode[] | null = null;
 
-      // ===== Faculty =====
-      {
-        id: "Math",
-        title: "Mathematics",
-        subject: "Mathematics",
-        description: "Faculty of Mathematics",
-        faculty: "Math",
-        prerequisites: ["Root"],
-        level: 0,
-      },
-      {
-        id: "Health",
-        title: "Health Sciences",
-        subject: "Health Sciences",
-        description: "Faculty of Health Sciences",
-        faculty: "Health",
-        prerequisites: ["Root"],
-        level: 0,
-      },
-      {
-        id: "Engineering",
-        title: "Engineering",
-        subject: "Engineering",
-        description: "Faculty of Engineering",
-        faculty: "Engineering",
-        prerequisites: ["Root"],
-        level: 0,
-      },
-      {
-        id: "Science",
-        title: "Science",
-        subject: "Science",
-        description: "Faculty of Science",
-        faculty: "Science",
-        prerequisites: ["Root"],
-        level: 0,
-      },
-      {
-        id: "Arts",
-        title: "Arts",
-        subject: "Arts",
-        description: "Faculty of Arts",
-        faculty: "Arts",
-        prerequisites: ["Root"],
-        level: 0,
-      },
-      {
-        id: "Environment",
-        title: "Environment",
-        subject: "Environment",
-        description: "Faculty of Environment",
-        faculty: "Environment",
-        prerequisites: ["Root"],
-        level: 0,
-      },
-    ],
-    links: [],
-  };
+const rootAndFacultyNodes: GraphNode[] = [
+  {
+    id: "Root",
+    title: "Root",
+    subject: "None",
+    description: "Root Node",
+    faculty: "None",
+    prerequisites: [],
+    level: 0,
+  },
+  {
+    id: "MAT",
+    title: "Mathematics",
+    subject: "Mathematics",
+    description: "Faculty of Mathematics",
+    faculty: "MAT",
+    prerequisites: ["Root"],
+    level: 0,
+  },
+  {
+    id: "HEA",
+    title: "Health Sciences",
+    subject: "Health Sciences",
+    description: "Faculty of Health Sciences",
+    faculty: "HEA",
+    prerequisites: ["Root"],
+    level: 0,
+  },
+  {
+    id: "ENG",
+    title: "Engineering",
+    subject: "Engineering",
+    description: "Faculty of Engineering",
+    faculty: "ENG",
+    prerequisites: ["Root"],
+    level: 0,
+  },
+  {
+    id: "SCI",
+    title: "Science",
+    subject: "Science",
+    description: "Faculty of Science",
+    faculty: "SCI",
+    prerequisites: ["Root"],
+    level: 0,
+  },
+  {
+    id: "ART",
+    title: "Arts",
+    subject: "Arts",
+    description: "Faculty of Arts",
+    faculty: "ART",
+    prerequisites: ["Root"],
+    level: 0,
+  },
+  {
+    id: "ENV",
+    title: "Environment",
+    subject: "Environment",
+    description: "Faculty of Environment",
+    faculty: "ENV",
+    prerequisites: ["Root"],
+    level: 0,
+  },
+  {
+    id: "N/A",
+    title: "Other",
+    subject: "Other",
+    description: "Other Courses",
+    faculty: "N/A",
+    prerequisites: ["Root"],
+    level: 0,
+  },
+];
 
-  // Build links automatically from prerequisites
-  data.links = data.nodes.flatMap((course) =>
-    course.prerequisites.map((pre) => ({
+async function getCourseNodes(): Promise<GraphNode[]> {
+  if (cachedCourseNodes) {
+    return cachedCourseNodes;
+  }
+
+  const courses = await prisma.course.findMany();
+  cachedCourseNodes = courses.map((course) => ({
+    id: course.id,
+    title: course.title,
+    subject: course.subject,
+    description: course.description,
+    faculty: course.faculty,
+    level: course.level,
+    prerequisites: course.prerequisites,
+  }));
+
+  return cachedCourseNodes;
+}
+
+function filterByFaculties(
+  courseNodes: GraphNode[],
+  faculties: string[]
+): GraphNode[] {
+  if (faculties.length === 0) {
+    return courseNodes;
+  }
+  return courseNodes.filter((node) => faculties.includes(node.faculty));
+}
+
+function buildLinks(nodes: GraphNode[]) {
+  const nodeIds = new Set(nodes.map((n) => n.id));
+
+  return nodes.flatMap((course) => {
+    if (course.id === "Root") return [];
+
+    if (course.prerequisites.length === 0) {
+      return [{ source: course.faculty, target: course.id }];
+    }
+
+    // Check if any prerequisites exist in our node set
+    const validPrereqs = course.prerequisites.filter((pre) => nodeIds.has(pre));
+
+    if (validPrereqs.length === 0) {
+      // No valid prereqs in filtered set, link to faculty instead
+      return [{ source: course.faculty, target: course.id }];
+    }
+
+    return validPrereqs.map((pre) => ({
       source: pre,
       target: course.id,
-    })),
-  );
+    }));
+  });
+}
+
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams;
+  const facultiesParam = searchParams.get("faculties");
+  const faculties = facultiesParam ? facultiesParam.split(",") : [];
+
+  const allCourseNodes = await getCourseNodes();
+  const filteredCourseNodes = filterByFaculties(allCourseNodes, faculties);
+
+  // Filter faculty nodes to only include requested faculties
+  const filteredFacultyNodes =
+    faculties.length === 0
+      ? rootAndFacultyNodes
+      : rootAndFacultyNodes.filter(
+          (node) => node.id === "Root" || faculties.includes(node.id)
+        );
+
+  const nodes = [...filteredFacultyNodes, ...filteredCourseNodes];
+
+  const data: GraphData = {
+    nodes,
+    links: buildLinks(nodes),
+  };
 
   return NextResponse.json(data);
 }
