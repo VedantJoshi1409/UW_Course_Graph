@@ -5,23 +5,14 @@ import { GraphData, GraphNode } from "@/graph/types";
 // Cache for course nodes
 let cachedCourseNodes: GraphNode[] | null = null;
 
-const rootAndFacultyNodes: GraphNode[] = [
-  {
-    id: "Root",
-    title: "Root",
-    subject: "None",
-    description: "Root Node",
-    faculty: "None",
-    prerequisites: [],
-    level: 0,
-  },
+const facultyNodes: GraphNode[] = [
   {
     id: "MAT",
     title: "Mathematics",
     subject: "Mathematics",
     description: "Faculty of Mathematics",
     faculty: "MAT",
-    prerequisites: ["Root"],
+    prerequisites: [],
     level: 0,
   },
   {
@@ -30,7 +21,7 @@ const rootAndFacultyNodes: GraphNode[] = [
     subject: "Health Sciences",
     description: "Faculty of Health Sciences",
     faculty: "HEA",
-    prerequisites: ["Root"],
+    prerequisites: [],
     level: 0,
   },
   {
@@ -39,7 +30,7 @@ const rootAndFacultyNodes: GraphNode[] = [
     subject: "Engineering",
     description: "Faculty of Engineering",
     faculty: "ENG",
-    prerequisites: ["Root"],
+    prerequisites: [],
     level: 0,
   },
   {
@@ -48,7 +39,7 @@ const rootAndFacultyNodes: GraphNode[] = [
     subject: "Science",
     description: "Faculty of Science",
     faculty: "SCI",
-    prerequisites: ["Root"],
+    prerequisites: [],
     level: 0,
   },
   {
@@ -57,7 +48,7 @@ const rootAndFacultyNodes: GraphNode[] = [
     subject: "Arts",
     description: "Faculty of Arts",
     faculty: "ART",
-    prerequisites: ["Root"],
+    prerequisites: [],
     level: 0,
   },
   {
@@ -66,7 +57,7 @@ const rootAndFacultyNodes: GraphNode[] = [
     subject: "Environment",
     description: "Faculty of Environment",
     faculty: "ENV",
-    prerequisites: ["Root"],
+    prerequisites: [],
     level: 0,
   },
   {
@@ -75,7 +66,7 @@ const rootAndFacultyNodes: GraphNode[] = [
     subject: "Other",
     description: "Other Courses",
     faculty: "N/A",
-    prerequisites: ["Root"],
+    prerequisites: [],
     level: 0,
   },
 ];
@@ -101,7 +92,7 @@ async function getCourseNodes(): Promise<GraphNode[]> {
 
 function filterByFaculties(
   courseNodes: GraphNode[],
-  faculties: string[]
+  faculties: string[],
 ): GraphNode[] {
   if (faculties.length === 0) {
     return courseNodes;
@@ -111,9 +102,11 @@ function filterByFaculties(
 
 function buildLinks(nodes: GraphNode[]) {
   const nodeIds = new Set(nodes.map((n) => n.id));
+  const facultyIds = new Set(facultyNodes.map((n) => n.id));
 
   return nodes.flatMap((course) => {
-    if (course.id === "Root") return [];
+    // Skip faculty nodes themselves
+    if (facultyIds.has(course.id)) return [];
 
     if (course.prerequisites.length === 0) {
       return [{ source: course.faculty, target: course.id }];
@@ -145,10 +138,8 @@ export async function GET(request: NextRequest) {
   // Filter faculty nodes to only include requested faculties
   const filteredFacultyNodes =
     faculties.length === 0
-      ? rootAndFacultyNodes
-      : rootAndFacultyNodes.filter(
-          (node) => node.id === "Root" || faculties.includes(node.id)
-        );
+      ? facultyNodes
+      : facultyNodes.filter((node) => faculties.includes(node.id));
 
   const nodes = [...filteredFacultyNodes, ...filteredCourseNodes];
 
