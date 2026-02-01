@@ -35,8 +35,7 @@ export default function FacultySelector({
   };
 
   return (
-    <div className="absolute top-4 right-4 bg-gray-900/90 p-4 rounded-lg shadow-lg z-10 min-w-[200px]">
-      <h3 className="text-white font-semibold mb-3">Faculties</h3>
+    <div className="min-w-[200px]">
       <div className="flex gap-2 mb-3">
         <button
           onClick={selectAll}

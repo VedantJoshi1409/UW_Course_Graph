@@ -4,7 +4,10 @@ import ForceGraph3D from "3d-force-graph";
 import { useEffect, useRef, useState } from "react";
 import { GraphData, GraphNode } from "./types";
 import FacultySelector from "./FacultySelector";
+import CourseSearch from "./CourseSearch";
+import ModeToggle from "./ModeToggle";
 import NodeInfoBox from "./NodeInfoBox";
+
 const FACULTY_COLORS: Record<string, string> = {
   MAT: "#df1aa0",
   SCI: "#0072da",
@@ -32,40 +35,55 @@ function mixWithWhite(hex: string, amount: number): string {
 export default function CourseGraph() {
   const ref = useRef<HTMLDivElement>(null);
   const graphRef = useRef<ReturnType<typeof ForceGraph3D> | null>(null);
+
+  const [mode, setMode] = useState<"faculty" | "search">("faculty");
   const [selectedFaculties, setSelectedFaculties] = useState<string[]>([]);
+  const [searchCourses, setSearchCourses] = useState<string[]>([]);
+  const [includeUnlocked, setIncludeUnlocked] = useState(true);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+
+  const handleCourseSearch = (courses: string[], withUnlocked: boolean) => {
+    setSearchCourses(courses);
+    setIncludeUnlocked(withUnlocked);
+  };
 
   useEffect(() => {
     const loadData = async () => {
       let data: GraphData;
+      let url: string;
 
-      if (selectedFaculties.length === 0) {
-        // Show empty graph when nothing selected
-        data = {
-          nodes: [],
-          links: [],
-        };
+      if (mode === "faculty") {
+        if (selectedFaculties.length === 0) {
+          data = { nodes: [], links: [] };
+        } else {
+          url = `/api/graph?faculties=${selectedFaculties.join(",")}`;
+          const res = await fetch(url);
+          data = await res.json();
+        }
       } else {
-        const url = `/api/graph?faculties=${selectedFaculties.join(",")}`;
-        const res = await fetch(url);
-        data = await res.json();
-
-        // Count how many courses each node unlocks
-        const unlockCount: Record<string, number> = {};
-        data.nodes.forEach((node) => {
-          node.prerequisites.forEach((prereq) => {
-            unlockCount[prereq] = (unlockCount[prereq] || 0) + 1;
-          });
-        });
-
-        // Find max unlock count for normalization
-        const maxUnlocks = Math.max(...Object.values(unlockCount), 1);
-
-        data.nodes.forEach((node: any) => {
-          node.unlockCount = unlockCount[node.id] || 0;
-          node.unlockRatio = node.unlockCount / maxUnlocks;
-        });
+        if (searchCourses.length === 0) {
+          data = { nodes: [], links: [] };
+        } else {
+          url = `/api/graph?courses=${searchCourses.join(",")}&includeUnlocked=${includeUnlocked}`;
+          const res = await fetch(url);
+          data = await res.json();
+        }
       }
+
+      // Count how many courses each node unlocks
+      const unlockCount: Record<string, number> = {};
+      data.nodes.forEach((node) => {
+        node.prerequisites.forEach((prereq) => {
+          unlockCount[prereq] = (unlockCount[prereq] || 0) + 1;
+        });
+      });
+
+      const maxUnlocks = Math.max(...Object.values(unlockCount), 1);
+
+      data.nodes.forEach((node: any) => {
+        node.unlockCount = unlockCount[node.id] || 0;
+        node.unlockRatio = node.unlockCount / maxUnlocks;
+      });
 
       if (graphRef.current) {
         graphRef.current.graphData(data);
@@ -93,7 +111,7 @@ export default function CourseGraph() {
     };
 
     loadData();
-  }, [selectedFaculties]);
+  }, [mode, selectedFaculties, searchCourses, includeUnlocked]);
 
   return (
     <div className="relative w-full h-screen">
@@ -103,10 +121,18 @@ export default function CourseGraph() {
           onClose={() => setSelectedNode(null)}
         />
       )}
-      <FacultySelector
-        selected={selectedFaculties}
-        onChange={setSelectedFaculties}
-      />
+
+      <ModeToggle mode={mode} onChange={setMode}>
+        {mode === "faculty" ? (
+          <FacultySelector
+            selected={selectedFaculties}
+            onChange={setSelectedFaculties}
+          />
+        ) : (
+          <CourseSearch onSearch={handleCourseSearch} />
+        )}
+      </ModeToggle>
+
       <div ref={ref} className="w-full h-full" />
     </div>
   );

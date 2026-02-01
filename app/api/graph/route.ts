@@ -13,6 +13,7 @@ const facultyNodes: GraphNode[] = [
     description: "Faculty of Mathematics",
     faculty: "MAT",
     prerequisites: [],
+    unlocks: [],
     level: 0,
   },
   {
@@ -22,6 +23,7 @@ const facultyNodes: GraphNode[] = [
     description: "Faculty of Health Sciences",
     faculty: "HEA",
     prerequisites: [],
+    unlocks: [],
     level: 0,
   },
   {
@@ -31,6 +33,7 @@ const facultyNodes: GraphNode[] = [
     description: "Faculty of Engineering",
     faculty: "ENG",
     prerequisites: [],
+    unlocks: [],
     level: 0,
   },
   {
@@ -40,6 +43,7 @@ const facultyNodes: GraphNode[] = [
     description: "Faculty of Science",
     faculty: "SCI",
     prerequisites: [],
+    unlocks: [],
     level: 0,
   },
   {
@@ -49,6 +53,7 @@ const facultyNodes: GraphNode[] = [
     description: "Faculty of Arts",
     faculty: "ART",
     prerequisites: [],
+    unlocks: [],
     level: 0,
   },
   {
@@ -58,6 +63,7 @@ const facultyNodes: GraphNode[] = [
     description: "Faculty of Environment",
     faculty: "ENV",
     prerequisites: [],
+    unlocks: [],
     level: 0,
   },
   {
@@ -67,6 +73,7 @@ const facultyNodes: GraphNode[] = [
     description: "Other Courses",
     faculty: "N/A",
     prerequisites: [],
+    unlocks: [],
     level: 0,
   },
 ];
@@ -84,7 +91,8 @@ async function getCourseNodes(): Promise<GraphNode[]> {
     description: course.description,
     faculty: course.faculty,
     level: course.level,
-    prerequisites: course.prerequisites,
+    prerequisites: course.prerequisites || [],
+    unlocks: course.unlocks || [],
   }));
 
   return cachedCourseNodes;
@@ -100,7 +108,7 @@ function filterByFaculties(
   return courseNodes.filter((node) => faculties.includes(node.faculty));
 }
 
-function buildLinks(nodes: GraphNode[]) {
+function buildLinks(nodes: GraphNode[], includeFacultyLinks: boolean = true) {
   const nodeIds = new Set(nodes.map((n) => n.id));
   const facultyIds = new Set(facultyNodes.map((n) => n.id));
 
@@ -109,15 +117,21 @@ function buildLinks(nodes: GraphNode[]) {
     if (facultyIds.has(course.id)) return [];
 
     if (course.prerequisites.length === 0) {
-      return [{ source: course.faculty, target: course.id }];
+      if (includeFacultyLinks && nodeIds.has(course.faculty)) {
+        return [{ source: course.faculty, target: course.id }];
+      }
+      return [];
     }
 
     // Check if any prerequisites exist in our node set
     const validPrereqs = course.prerequisites.filter((pre) => nodeIds.has(pre));
 
     if (validPrereqs.length === 0) {
-      // No valid prereqs in filtered set, link to faculty instead
-      return [{ source: course.faculty, target: course.id }];
+      // No valid prereqs in filtered set, link to faculty if available
+      if (includeFacultyLinks && nodeIds.has(course.faculty)) {
+        return [{ source: course.faculty, target: course.id }];
+      }
+      return [];
     }
 
     return validPrereqs.map((pre) => ({
@@ -127,25 +141,91 @@ function buildLinks(nodes: GraphNode[]) {
   });
 }
 
+function getUnlockedCoursesRecursive(
+  startCourses: string[],
+  allCourses: GraphNode[],
+): Set<string> {
+  const unlocked = new Set<string>(startCourses);
+  const courseMap = new Map(allCourses.map((c) => [c.id, c]));
+
+  // BFS to find all recursively unlocked courses using pre-computed unlocks
+  const queue = [...startCourses];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const currentCourse = courseMap.get(current);
+    if (!currentCourse) continue;
+
+    for (const courseId of currentCourse.unlocks || []) {
+      if (!unlocked.has(courseId)) {
+        const course = courseMap.get(courseId);
+        if (course) {
+          // Check if all prerequisites are unlocked
+          unlocked.add(courseId);
+          queue.push(courseId);
+        }
+      }
+    }
+  }
+
+  return unlocked;
+}
+
+function filterByCourses(
+  courseNodes: GraphNode[],
+  courses: string[],
+  includeUnlocked: boolean,
+): GraphNode[] {
+  if (courses.length === 0) {
+    return [];
+  }
+
+  const courseIds = courses.map((c) => c.toUpperCase());
+
+  if (!includeUnlocked) {
+    return courseNodes.filter((node) => courseIds.includes(node.id));
+  }
+
+  const unlockedIds = getUnlockedCoursesRecursive(courseIds, courseNodes);
+  return courseNodes.filter((node) => unlockedIds.has(node.id));
+}
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const facultiesParam = searchParams.get("faculties");
-  const faculties = facultiesParam ? facultiesParam.split(",") : [];
+  const coursesParam = searchParams.get("courses");
+  const includeUnlocked = searchParams.get("includeUnlocked") === "true";
 
   const allCourseNodes = await getCourseNodes();
-  const filteredCourseNodes = filterByFaculties(allCourseNodes, faculties);
 
-  // Filter faculty nodes to only include requested faculties
-  const filteredFacultyNodes =
-    faculties.length === 0
-      ? facultyNodes
-      : facultyNodes.filter((node) => faculties.includes(node.id));
+  let filteredCourseNodes: GraphNode[];
+  let filteredFacultyNodes: GraphNode[];
+
+  if (coursesParam) {
+    // Course search mode - no faculty nodes
+    const courses = coursesParam.split(",").filter((c) => c.length > 0);
+    filteredCourseNodes = filterByCourses(
+      allCourseNodes,
+      courses,
+      includeUnlocked,
+    );
+    filteredFacultyNodes = [];
+  } else {
+    // Faculty filter mode
+    const faculties = facultiesParam ? facultiesParam.split(",") : [];
+    filteredCourseNodes = filterByFaculties(allCourseNodes, faculties);
+
+    filteredFacultyNodes =
+      faculties.length === 0
+        ? facultyNodes
+        : facultyNodes.filter((node) => faculties.includes(node.id));
+  }
 
   const nodes = [...filteredFacultyNodes, ...filteredCourseNodes];
+  const includeFacultyLinks = !coursesParam;
 
   const data: GraphData = {
     nodes,
-    links: buildLinks(nodes),
+    links: buildLinks(nodes, includeFacultyLinks),
   };
 
   return NextResponse.json(data);

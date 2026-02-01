@@ -21,4 +21,5 @@ model Course {
   faculty       String
   level         Int
   prerequisites String[]
+  unlocks       String[]
 }

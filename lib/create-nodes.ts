@@ -9,6 +9,7 @@ type CourseData = {
   faculty: string;
   level: number | null;
   prerequisites: string[];
+  unlocks: string[];
 };
 
 type CoursesJson = Record<string, CourseData>;
@@ -27,6 +28,7 @@ export function createNodes(): GraphNode[] {
     faculty: course.faculty,
     level: course.level ?? 0,
     prerequisites: course.prerequisites,
+    unlocks: course.unlocks ?? [],
   }));
 }
 

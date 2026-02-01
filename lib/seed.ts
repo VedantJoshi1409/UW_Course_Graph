@@ -26,6 +26,7 @@ async function seed() {
         faculty: node.faculty,
         level: node.level,
         prerequisites: node.prerequisites,
+        unlocks: node.unlocks,
       })),
     });
     totalCreated += result.count;
