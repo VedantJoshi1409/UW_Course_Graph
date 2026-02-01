@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { createNodes } from "@/lib/create-nodes";
 import { GraphData, GraphNode } from "@/graph/types";
 
 // Cache for course nodes
@@ -78,23 +78,11 @@ const facultyNodes: GraphNode[] = [
   },
 ];
 
-async function getCourseNodes(): Promise<GraphNode[]> {
+function getCourseNodes(): GraphNode[] {
   if (cachedCourseNodes) {
     return cachedCourseNodes;
   }
-
-  const courses = await prisma.course.findMany();
-  cachedCourseNodes = courses.map((course) => ({
-    id: course.id,
-    title: course.title,
-    subject: course.subject,
-    description: course.description,
-    faculty: course.faculty,
-    level: course.level,
-    prerequisites: course.prerequisites || [],
-    unlocks: course.unlocks || [],
-  }));
-
+  cachedCourseNodes = createNodes();
   return cachedCourseNodes;
 }
 
@@ -159,7 +147,6 @@ function getUnlockedCoursesRecursive(
       if (!unlocked.has(courseId)) {
         const course = courseMap.get(courseId);
         if (course) {
-          // Check if all prerequisites are unlocked
           unlocked.add(courseId);
           queue.push(courseId);
         }
@@ -195,7 +182,7 @@ export async function GET(request: NextRequest) {
   const coursesParam = searchParams.get("courses");
   const includeUnlocked = searchParams.get("includeUnlocked") === "true";
 
-  const allCourseNodes = await getCourseNodes();
+  const allCourseNodes = getCourseNodes();
 
   let filteredCourseNodes: GraphNode[];
   let filteredFacultyNodes: GraphNode[];
