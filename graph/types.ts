@@ -1,10 +1,10 @@
 export type GraphNode = {
   id: string;
+  title: string;
+  subject: string;
   description: string;
   faculty: string;
   prerequisites: string[];
-  unlocks: string[];
-  description: string;
   level: number;
 
   // --- simulation / layout fields (optional) ---

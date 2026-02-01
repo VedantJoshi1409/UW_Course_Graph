@@ -12,3 +12,13 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model Course {
+  id            String   @id @default(cuid())
+  title         String
+  subject       String
+  description   String
+  faculty       String
+  level         Int
+  prerequisites String[]
+}
