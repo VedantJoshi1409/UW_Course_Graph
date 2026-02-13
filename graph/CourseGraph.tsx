@@ -2,7 +2,9 @@
 
 import ForceGraph3D, { ForceGraph3DInstance } from "3d-force-graph";
 
-const ForceGraph3DFn = ForceGraph3D as unknown as () => (elem: HTMLElement) => ForceGraph3DInstance;
+const ForceGraph3DFn = ForceGraph3D as unknown as () => (
+  elem: HTMLElement,
+) => ForceGraph3DInstance;
 import { useEffect, useRef, useState } from "react";
 import { GraphData, GraphNode } from "./types";
 import FacultySelector from "./FacultySelector";
@@ -87,6 +89,8 @@ export default function CourseGraph() {
         node.unlockRatio = node.unlockCount / maxUnlocks;
       });
 
+      console.log(data.nodes.length, "nodes loaded");
+      console.log(data.links.length, "links loaded");
       if (graphRef.current) {
         graphRef.current.graphData(data);
       } else {
