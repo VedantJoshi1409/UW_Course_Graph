@@ -45,6 +45,7 @@ export default function CourseGraph() {
   const [searchCourses, setSearchCourses] = useState<string[]>([]);
   const [includeUnlocked, setIncludeUnlocked] = useState(true);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [renderError, setRenderError] = useState<string | null>(null);
 
   const handleCourseSearch = (courses: string[], withUnlocked: boolean) => {
     setSearchCourses(courses);
@@ -89,35 +90,56 @@ export default function CourseGraph() {
         node.unlockRatio = node.unlockCount / maxUnlocks;
       });
 
-      console.log(data.nodes.length, "nodes loaded");
-      console.log(data.links.length, "links loaded");
+      // console.log(data.nodes.length, "nodes loaded");
+      // console.log(data.links.length, "links loaded");
       if (graphRef.current) {
         graphRef.current.graphData(data);
       } else {
-        graphRef.current = ForceGraph3DFn()(ref.current!)
-          .graphData(data)
-          .nodeLabel("title")
-          .nodeColor((node: any) => {
-            const baseColor = FACULTY_COLORS[node.faculty] || "#888888";
-            if (FACULTY_IDS.has(node.id)) {
-              return mixWithWhite(baseColor, 0.7);
-            }
-            return baseColor;
-          })
-          .nodeVal((node: any) => {
-            if (FACULTY_IDS.has(node.id)) return 15;
-            const unlockCount = node.unlockCount || 0;
-            return Math.min(Math.max(1, Math.pow(1.15, unlockCount)), 10);
-          })
-          .backgroundColor("#050510")
-          .onNodeClick((node) => {
-            setSelectedNode(node as GraphNode);
-          });
+        try {
+          graphRef.current = ForceGraph3DFn()(ref.current!)
+            .graphData(data)
+            .nodeLabel("title")
+            .nodeColor((node: any) => {
+              const baseColor = FACULTY_COLORS[node.faculty] || "#888888";
+              if (FACULTY_IDS.has(node.id)) {
+                return mixWithWhite(baseColor, 0.7);
+              }
+              return baseColor;
+            })
+            .nodeVal((node: any) => {
+              if (FACULTY_IDS.has(node.id)) return 15;
+              const unlockCount = node.unlockCount || 0;
+              return Math.min(Math.max(1, Math.pow(1.15, unlockCount)), 10);
+            })
+            .backgroundColor("#050510")
+            .onNodeClick((node) => {
+              setSelectedNode(node as GraphNode);
+            });
+        } catch (err) {
+          console.error("Failed to initialize 3D graph:", err);
+          setRenderError(
+            "Your browser does not support WebGL or WebGPU, which is required for the 3D course graph. " +
+              "Try enabling hardware acceleration in your browser settings or updating your graphics drivers.",
+          );
+        }
       }
     };
 
     loadData();
   }, [mode, selectedFaculties, searchCourses, includeUnlocked]);
+
+  if (renderError) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center p-8">
+        <div className="text-center max-w-md">
+          <h2 className="text-xl font-bold text-white mb-2">
+            3D Graph Unavailable
+          </h2>
+          <p className="text-sm text-gray-400">{renderError}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-screen">
